@@ -1,15 +1,15 @@
-/* =====================================================================
-   Onyeka Omitade Foundation — site interactions (no dependencies)
-   ---------------------------------------------------------------------
+/* ======================================================================
+   Onyeka Omitade Foundation · site interactions (no dependencies)
+   ----------------------------------------------------------------------
    SETUP FOR YOUR DEVELOPER
-   1. PAYMENT_URL   Paystack / Flutterwave payment page link. The chosen
-                    amount, frequency and email are appended as query
-                    parameters (?amount=&frequency=&email=).
-   2. FORM_ENDPOINT A form backend (Formspree, Getform, your own API)
-                    that receives support / volunteer / partner /
-                    newsletter submissions as JSON. Empty = show the
-                    thank-you state only.
-   ===================================================================== */
+   PAYMENT_URL    Paystack or Flutterwave payment page link. The chosen
+                  amount, frequency and email are added as query
+                  parameters (?amount=&frequency=&email=).
+   FORM_ENDPOINT  A form backend (Formspree, Getform or your own API)
+                  that receives the support, volunteer, partner and
+                  newsletter forms as JSON. Leave empty to only show the
+                  thank-you state.
+   ====================================================================== */
 const PAYMENT_URL = "";   // e.g. "https://paystack.com/pay/onyeka-foundation"
 const FORM_ENDPOINT = ""; // e.g. "https://formspree.io/f/xxxxxxx"
 
@@ -18,125 +18,81 @@ const FORM_ENDPOINT = ""; // e.g. "https://formspree.io/f/xxxxxxx"
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const naira = n => "₦" + Number(n).toLocaleString("en-NG");
-  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
-  /* ---------- nav: solid on scroll, hide on scroll down ---------- */
-  const nav = $(".nav");
-  const hasHero = document.body.classList.contains("has-hero");
-  const actbar = $(".actbar");
-  let lastY = scrollY;
+  /* nav border + mobile action bar */
+  const nav = $(".nav"), bar = $(".actbar");
   const onScroll = () => {
-    const y = scrollY;
-    if (nav) {
-      nav.classList.toggle("solid", !hasHero || y > 40);
-      const goingDown = y > lastY + 4, goingUp = y < lastY - 4;
-      if (goingDown && y > 700) nav.classList.add("hide");
-      if (goingUp || y < 200) nav.classList.remove("hide");
-    }
-    if (actbar) actbar.classList.toggle("show", y > (hasHero ? innerHeight * 0.7 : 320));
-    lastY = y;
+    nav && nav.classList.toggle("scrolled", scrollY > 8);
+    bar && bar.classList.toggle("show", scrollY > 480);
   };
-  addEventListener("scroll", onScroll, { passive: true });
-  onScroll();
+  addEventListener("scroll", onScroll, { passive: true }); onScroll();
 
-  /* ---------- mobile menu ---------- */
-  const menu = $("#menu"), burger = $(".burger");
-  if (menu && burger) {
-    const close = () => { menu.classList.remove("open"); burger.setAttribute("aria-expanded", "false"); document.body.style.overflow = ""; menu.setAttribute("aria-hidden", "true"); burger.focus(); };
-    burger.addEventListener("click", () => {
-      menu.classList.add("open"); menu.setAttribute("aria-hidden", "false");
-      burger.setAttribute("aria-expanded", "true"); document.body.style.overflow = "hidden";
-      setTimeout(() => $(".menu-close", menu).focus(), 50);
+  /* mobile menu sheet */
+  const sheet = $("#sheet"), burger = $(".burger");
+  if (sheet && burger) {
+    const open = () => { sheet.classList.add("open"); sheet.setAttribute("aria-hidden", "false"); burger.setAttribute("aria-expanded", "true"); document.body.style.overflow = "hidden"; setTimeout(() => $(".sheet-close", sheet).focus(), 30); };
+    const close = () => { sheet.classList.remove("open"); sheet.setAttribute("aria-hidden", "true"); burger.setAttribute("aria-expanded", "false"); document.body.style.overflow = ""; };
+    burger.addEventListener("click", open);
+    $(".sheet-close", sheet).addEventListener("click", () => { close(); burger.focus(); });
+    sheet.addEventListener("click", e => { if (e.target === sheet) close(); });
+    $$("a", sheet).forEach(a => a.addEventListener("click", close));
+    addEventListener("keydown", e => { if (e.key === "Escape" && sheet.classList.contains("open")) { close(); burger.focus(); } });
+  }
+
+  /* founder story tabs (auto-advance until the visitor interacts) */
+  $$("[data-ftabs]").forEach(root => {
+    const tabs = $$(".ftab", root), imgs = $$(".fmedia img", root);
+    let i = 0, timer = null;
+    const show = k => {
+      i = k;
+      tabs.forEach((t, n) => t.setAttribute("aria-selected", n === k));
+      imgs.forEach((im, n) => im.classList.toggle("on", n === k));
+    };
+    const stop = () => { clearInterval(timer); timer = null; };
+    tabs.forEach((t, n) => t.addEventListener("click", () => { stop(); show(n); }));
+    root.addEventListener("keydown", e => {
+      if (!["ArrowDown", "ArrowUp"].includes(e.key)) return;
+      e.preventDefault(); stop();
+      const n = (i + (e.key === "ArrowDown" ? 1 : -1) + tabs.length) % tabs.length; show(n); tabs[n].focus();
     });
-    $(".menu-close", menu).addEventListener("click", close);
-    $$("a", menu).forEach(a => a.addEventListener("click", () => { document.body.style.overflow = ""; menu.classList.remove("open"); }));
-    addEventListener("keydown", e => { if (e.key === "Escape" && menu.classList.contains("open")) close(); });
-  }
-
-  /* ---------- manifesto: words light up as you scroll ---------- */
-  const man = $(".manifesto");
-  if (man) {
-    const words = $$(".w", man);
-    if (reduce) words.forEach(w => w.classList.add("lit"));
-    else {
-      const upd = () => {
-        const r = man.getBoundingClientRect();
-        const p = clamp((innerHeight * 0.85 - r.top) / (r.height * 0.9), 0, 1);
-        const n = Math.round(p * words.length);
-        words.forEach((w, i) => w.classList.toggle("lit", i < n));
-      };
-      addEventListener("scroll", upd, { passive: true }); upd();
+    if (!reduce && "IntersectionObserver" in window) {
+      new IntersectionObserver(([en]) => {
+        if (en.isIntersecting && !timer) timer = setInterval(() => show((i + 1) % tabs.length), 6000);
+        if (!en.isIntersecting) stop();
+      }, { threshold: .4 }).observe(root);
+      root.addEventListener("pointerenter", stop);
     }
-  }
-
-  /* ---------- sticky story: swap image per step ---------- */
-  const story = $(".story");
-  if (story && "IntersectionObserver" in window) {
-    const imgs = $$(".story-media img", story), steps = $$(".step", story), cap = $(".story-media .cap b", story);
-    const io = new IntersectionObserver(es => es.forEach(en => {
-      if (!en.isIntersecting) return;
-      const i = steps.indexOf(en.target);
-      steps.forEach((s, k) => s.classList.toggle("on", k === i));
-      imgs.forEach((im, k) => im.classList.toggle("on", k === i));
-      if (cap) cap.textContent = String(i + 1).padStart(2, "0") + " / " + String(steps.length).padStart(2, "0");
-    }), { rootMargin: "-45% 0px -45% 0px" });
-    steps.forEach(s => io.observe(s));
-    steps[0] && steps[0].classList.add("on");
-  }
-
-  /* ---------- programme index: hover preview ---------- */
-  const pv = $(".ppreview");
-  if (pv) {
-    const pimgs = $$("img", pv), txt = $(".pv-text", pv), items = $$(".pitem");
-    const set = i => {
-      items.forEach((it, k) => it.classList.toggle("on", k === i));
-      pimgs.forEach((im, k) => im.classList.toggle("on", k === i));
-      if (txt) txt.textContent = items[i].dataset.blurb || "";
-    };
-    items.forEach((it, i) => { it.addEventListener("mouseenter", () => set(i)); it.addEventListener("focus", () => set(i)); });
-    set(0);
-  }
-
-  /* ---------- journey timeline progress ---------- */
-  $$(".timeline").forEach(t => {
-    if (reduce) return;
-    const upd = () => { const r = t.getBoundingClientRect(); t.style.setProperty("--prog", clamp((innerHeight * 0.9 - r.top) / (innerHeight * 0.5), 0, 1).toFixed(3)); };
-    addEventListener("scroll", upd, { passive: true }); upd();
   });
 
-  /* ---------- carousel ---------- */
-  $$(".carousel").forEach(c => {
-    const rail = $(".rail", c), bar = $(".rail-progress i", c);
-    const step = () => ($(".slide", rail)?.getBoundingClientRect().width || 400) + 16;
-    $$("[data-dir]", c).forEach(b => b.addEventListener("click", () => rail.scrollBy({ left: step() * +b.dataset.dir, behavior: reduce ? "auto" : "smooth" })));
-    const upd = () => {
-      const max = rail.scrollWidth - rail.clientWidth, vis = rail.clientWidth / rail.scrollWidth;
-      if (bar) { bar.style.width = (vis * 100) + "%"; bar.style.transform = `translateX(${max ? (rail.scrollLeft / max) * ((1 - vis) / vis) * 100 : 0}%)`; }
-    };
-    rail.addEventListener("scroll", upd, { passive: true }); addEventListener("resize", upd); upd();
-    // mouse drag
-    let down = false, sx = 0, sl = 0, moved = false;
-    rail.addEventListener("pointerdown", e => { if (e.pointerType !== "mouse") return; down = true; moved = false; sx = e.clientX; sl = rail.scrollLeft; });
-    addEventListener("pointermove", e => { if (!down) return; const dx = e.clientX - sx; if (Math.abs(dx) > 4) { moved = true; rail.classList.add("drag"); } rail.scrollLeft = sl - dx; });
-    addEventListener("pointerup", () => { if (!down) return; down = false; rail.classList.remove("drag"); });
-    rail.addEventListener("click", e => { if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; } }, true);
-  });
+  /* programmes filter */
+  const filters = $$(".filters button");
+  if (filters.length) {
+    const items = $$(".prog");
+    filters.forEach(b => b.addEventListener("click", () => {
+      filters.forEach(x => x.setAttribute("aria-pressed", x === b));
+      const cat = b.dataset.cat;
+      items.forEach(it => it.hidden = cat !== "all" && !it.dataset.cat.split(" ").includes(cat));
+    }));
+  }
 
-  /* ---------- lightbox ---------- */
+  /* lightbox */
   const lb = $("#lb");
   if (lb) {
     const img = $("img", lb), count = $(".count", lb);
     let list = [], idx = 0;
-    const show = i => {
-      idx = (i + list.length) % list.length;
-      const b = list[idx]; img.src = b.dataset.full; img.alt = b.querySelector("img")?.alt || "";
+    const show = k => {
+      idx = (k + list.length) % list.length;
+      img.src = list[idx].dataset.full; img.alt = list[idx].querySelector("img")?.alt || "";
       count.textContent = `${idx + 1} / ${list.length}`;
     };
-    $$("[data-full]").forEach(b => b.addEventListener("click", () => {
-      list = $$("[data-full]", b.closest("[data-gallery]") || document);
-      show(list.indexOf(b));
-      if (lb.showModal) lb.showModal(); else lb.setAttribute("open", "");
-    }));
+    document.addEventListener("click", e => {
+      const b = e.target.closest("[data-full]"); if (!b) return;
+      const scope = b.closest("[data-gallery]") || document;
+      const seen = new Set();
+      list = $$("[data-full]", scope).filter(x => !x.closest("[aria-hidden='true']") && !seen.has(x.dataset.full) && seen.add(x.dataset.full));
+      show(Math.max(0, list.findIndex(x => x.dataset.full === b.dataset.full)));
+      lb.showModal ? lb.showModal() : lb.setAttribute("open", "");
+    });
     $(".prev", lb).addEventListener("click", () => show(idx - 1));
     $(".next", lb).addEventListener("click", () => show(idx + 1));
     $(".x", lb).addEventListener("click", () => lb.close());
@@ -147,42 +103,43 @@ const FORM_ENDPOINT = ""; // e.g. "https://formspree.io/f/xxxxxxx"
     lb.addEventListener("touchend", e => { const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 50) show(idx + (d < 0 ? 1 : -1)); });
   }
 
-  /* ---------- counters (final values are already in the HTML) ---------- */
+  /* count-up (final values are already in the HTML) */
   if (!reduce && "IntersectionObserver" in window) {
     const io = new IntersectionObserver(es => es.forEach(en => {
       if (!en.isIntersecting) return; io.unobserve(en.target);
-      const el = en.target.firstChild, t = +en.target.dataset.count, s = performance.now();
-      const tick = n => { const p = Math.min(1, (n - s) / 1600); el.nodeValue = Math.round(t * (1 - Math.pow(1 - p, 4))); if (p < 1) requestAnimationFrame(tick); };
+      const node = en.target.firstChild, t = +en.target.dataset.count, s = performance.now();
+      const tick = n => { const p = Math.min(1, (n - s) / 1400); node.nodeValue = Math.round(t * (1 - Math.pow(1 - p, 4))); if (p < 1) requestAnimationFrame(tick); };
       requestAnimationFrame(tick);
-    }), { threshold: 0.5 });
+    }), { threshold: .6 });
     $$("[data-count]").forEach(el => io.observe(el));
   }
 
-  /* ---------- form helpers ---------- */
+  /* form helpers */
   const validate = form => {
     let first = null;
     $$("[required]", form).forEach(el => {
-      const f = el.closest(".f"); const bad = !el.value.trim() || (el.type === "email" && !/^\S+@\S+\.\S+$/.test(el.value));
-      if (f) f.classList.toggle("bad", bad);
+      const bad = !el.value.trim() || (el.type === "email" && !/^\S+@\S+\.\S+$/.test(el.value));
+      el.closest(".f")?.classList.toggle("bad", bad);
+      el.setAttribute("aria-invalid", bad);
       if (bad && !first) first = el;
     });
-    if (first) first.focus();
+    first && first.focus();
     return !first;
   };
-  $$(".f input,.f textarea").forEach(el => el.addEventListener("input", () => el.closest(".f")?.classList.remove("bad")));
+  $$(".f input,.f textarea").forEach(el => el.addEventListener("input", () => { el.closest(".f")?.classList.remove("bad"); el.removeAttribute("aria-invalid"); }));
   const send = async (form, kind) => {
     if (!FORM_ENDPOINT) return;
     const data = { form: kind, page: location.pathname };
-    $$("input,select,textarea", form).forEach(el => { if ((el.type === "radio" || el.type === "checkbox") && !el.checked) return; data[el.name || el.id] = el.value; });
+    $$("input,select,textarea", form).forEach(el => { if (el.type === "radio" && !el.checked) return; data[el.name || el.id] = el.value; });
     try { await fetch(FORM_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(data) }); } catch (e) {}
   };
 
-  /* ---------- donate widget ---------- */
+  /* donation widget */
   const d = $("#donate-form");
   if (d) {
-    const btnLabel = $("#d-label"), sum = $("#d-sum"), other = $("#d-other");
+    const label = $("#d-label"), sum = $("#d-sum"), other = $("#d-other");
     const outcomes = [
-      [50000, "helps fund a professional assessment and a school-placement plan for one child"],
+      [50000, "helps fund a professional assessment and a school placement plan for one child"],
       [25000, "helps one child start school with the classroom support they need"],
       [10000, "helps keep one child in regular therapy"],
       [1, "helps provide learning and therapy materials for a child"]
@@ -194,16 +151,16 @@ const FORM_ENDPOINT = ""; // e.g. "https://formspree.io/f/xxxxxxx"
       return { freq, amt };
     };
     const render = () => {
-      const { freq, amt } = state();
-      btnLabel.textContent = amt ? `Give ${naira(amt)}${freq === "monthly" ? " monthly" : ""}` : "Choose an amount";
-      const o = outcomes.find(x => amt >= x[0]);
+      const { freq, amt } = state(), o = outcomes.find(x => amt >= x[0]);
+      label.textContent = amt ? `Give ${naira(amt)}${freq === "monthly" ? " / month" : ""}` : "Choose an amount";
       sum.textContent = amt && o ? `${naira(amt)}${freq === "monthly" ? " every month" : ""} ${o[1]}.` : "Choose an amount to see what it does.";
     };
     const q = new URLSearchParams(location.search);
     if (q.get("freq") === "once") $("#f-once").checked = true;
     if (q.get("amt")) {
       const v = q.get("amt"), r = $(`[name=amt][value="${v.replace(/\D/g, "")}"]`, d);
-      if (r) r.checked = true; else if (v === "other") setTimeout(() => other.focus(), 400);
+      if (r) r.checked = true;
+      else if (v === "other") setTimeout(() => other.focus(), 300);
       else if (+v) { $$("[name=amt]", d).forEach(x => x.checked = false); other.value = (+v).toLocaleString("en-NG"); }
     }
     d.addEventListener("change", e => { if (e.target.name === "amt") other.value = ""; render(); });
@@ -223,43 +180,34 @@ const FORM_ENDPOINT = ""; // e.g. "https://formspree.io/f/xxxxxxx"
         location.href = u.toString(); return;
       }
       const first = $("#d-name").value.trim().split(/\s+/)[0];
-      $("#d-thanks").textContent = `Thank you${first ? ", " + first : ""}.`;
-      $("#d-thanks-sub").textContent = `${naira(amt)}${freq === "monthly" ? " every month" : ""} will go to work for children and families. Once the payment link is connected, this step opens the secure checkout.`;
+      $("#d-thanks").textContent = `Thank you${first ? ", " + first : ""}!`;
+      $("#d-thanks-sub").textContent = `Your ${naira(amt)}${freq === "monthly" ? " monthly" : ""} gift is ready. Once the payment link is connected, this step opens the secure checkout.`;
       $("#d-step1").hidden = true; $("#d-step2").hidden = false;
     });
     $("#d-back").addEventListener("click", () => { $("#d-step1").hidden = false; $("#d-step2").hidden = true; });
     render();
   }
 
-  /* ---------- simple forms ---------- */
+  /* simple forms */
   $$("form[data-form]").forEach(form => form.addEventListener("submit", e => {
     e.preventDefault();
     if (!validate(form)) return;
     send(form, form.dataset.form);
-    const a = $(".form-body", form), b = $(".success", form);
-    if (a && b) { a.hidden = true; b.hidden = false; } else form.reset();
-    const msg = $(".form-msg", form); if (msg) msg.hidden = false;
+    const body = $(".form-body", form), ok = $(".success", form), msg = $(".form-msg", form);
+    if (body && ok) { body.hidden = true; ok.hidden = false; } else form.reset();
+    if (msg) msg.hidden = false;
   }));
 
-  /* ---------- contact intents ---------- */
+  /* contact intents */
   const intents = $$(".intent");
   if (intents.length) {
     const pick = id => intents.forEach(b => { const on = b.dataset.panel === id; b.setAttribute("aria-selected", on); $("#" + b.dataset.panel).hidden = !on; });
-    intents.forEach(b => b.addEventListener("click", () => { pick(b.dataset.panel); history.replaceState(null, "", "#" + b.dataset.panel.replace("p-", "")); }));
+    intents.forEach(b => b.addEventListener("click", () => { pick(b.dataset.panel); history.replaceState(null, "", "#" + b.dataset.panel.slice(2)); }));
     const h = location.hash.slice(1);
     if (["support", "volunteer", "partner"].includes(h)) { pick("p-" + h); setTimeout(() => $("#write")?.scrollIntoView(), 60); }
   }
 
-  /* ---------- programmes TOC active state ---------- */
-  const toc = $$(".toc a");
-  if (toc.length && "IntersectionObserver" in window) {
-    const io = new IntersectionObserver(es => es.forEach(en => {
-      if (en.isIntersecting) toc.forEach(a => a.classList.toggle("on", a.getAttribute("href") === "#" + en.target.id));
-    }), { rootMargin: "-30% 0px -60% 0px" });
-    $$(".psec").forEach(s => io.observe(s));
-  }
-
-  /* ---------- copy ---------- */
+  /* copy buttons */
   $$("[data-copy]").forEach(b => b.addEventListener("click", () => {
     const done = () => { const t = b.textContent; b.textContent = "Copied"; setTimeout(() => b.textContent = t, 1400); };
     navigator.clipboard?.writeText(b.dataset.copy).then(done, () => {});
